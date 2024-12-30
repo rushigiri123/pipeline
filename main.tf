@@ -56,6 +56,13 @@ resource "aws_instance" "webserver" {
   tags = {
     Name = "webserver-instance-${count.index + 1}"
   }
+
+  # Install required tools or dependencies (optional)
+  user_data = <<-EOF
+              #!/bin/bash
+              apt-get update -y
+              apt-get install putty -y
+              EOF
 }
 
 # Output the public IP addresses of the instances
@@ -63,9 +70,24 @@ output "instance_ips" {
   value = aws_instance.webserver.*.public_ip
 }
 
-# Output the private key for SSH access
-output "private_key" {
+# Output the private key for SSH access (PEM format)
+output "private_key_pem" {
   value     = tls_private_key.example.private_key_pem
   sensitive = true
 }
 
+# Generate PuTTY-compatible PPK private key
+resource "null_resource" "generate_ppk" {
+  provisioner "local-exec" {
+    command = <<-EOF
+                echo "${tls_private_key.example.private_key_pem}" > private_key.pem
+                puttygen private_key.pem -o private_key.ppk -O private
+              EOF
+  }
+}
+
+# Output the PuTTY-compatible PPK file location
+output "putty_key_path" {
+  value = "private_key.ppk"
+  description = "Path to the generated PuTTY private key file."
+}
